@@ -5,19 +5,22 @@
 
 """Simple otio viewer"""
 
+from ast import ImportFrom
 import os
 import sys
 import argparse
+
+
 try:
-    from PySide6 import QtWidgets, QtGui
-    from PySide6.QtGui import QAction
+    from PySide2 import QtWidgets, QtGui, QtCore
+    from PySide2.QtGui import QActionS
 except ImportError:
     from PySide2 import QtWidgets, QtGui
     from PySide2.QtWidgets import QAction
-
 import opentimelineio as otio
 import opentimelineio.console as otio_console
 import opentimelineview as otioViewWidget
+from PySide2.QtWidgets import QHBoxLayout, QPushButton, QStyle, QWidget
 from opentimelineview import settings
 
 
@@ -80,7 +83,7 @@ def _parsed_args():
 
 class TimelineWidgetItem(QtWidgets.QListWidgetItem):
     def __init__(self, timeline, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(TimelineWidgetItem, self).__init__(*args, **kwargs)
         self.timeline = timeline
 
 
@@ -94,7 +97,7 @@ class Main(QtWidgets.QMainWindow):
             *args,
             **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        super(Main, self).__init__(*args, **kwargs)
         self.adapter_argument_map = adapter_argument_map or {}
         self.media_linker = media_linker
         self.media_linker_argument_map = media_linker_argument_map
@@ -107,6 +110,10 @@ class Main(QtWidgets.QMainWindow):
         self.resize(1900, 1200)
 
         # widgets
+        self.thumbnail_viewer_widget = otioViewWidget.thumbnail_viewer_widget.ThumbnailViewer(self)
+        self.thumbnail_viewer_widget.show()
+
+
         self.tracks_widget = QtWidgets.QListWidget(
             parent=self
         )
@@ -117,14 +124,33 @@ class Main(QtWidgets.QMainWindow):
             parent=self
         )
 
+
+        self.controlLayout = QHBoxLayout()
+        self.controlLayout.setContentsMargins(0, 0, 0, 0)
+
+        self.nextButton = QPushButton()
+        self.nextButton.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self.nextButton.clicked.connect(self.thumbnail_viewer_widget.next_thumbnail)
+
+        self.controlLayout.addWidget(self.nextButton)
+        self.controlWidget = QWidget(self)
+        self.controlWidget.setLayout(self.controlLayout)
+
+
         root = QtWidgets.QWidget(parent=self)
         layout = QtWidgets.QVBoxLayout(root)
 
         splitter = QtWidgets.QSplitter(parent=root)
         splitter.addWidget(self.tracks_widget)
         splitter.addWidget(self.timeline_widget)
-        splitter.addWidget(self.details_widget)
 
+        inspectorSplitter = QtWidgets.QSplitter(parent=splitter)
+        inspectorSplitter.addWidget(self.thumbnail_viewer_widget)
+        inspectorSplitter.addWidget(self.controlWidget)
+        inspectorSplitter.addWidget(self.details_widget)
+        inspectorSplitter.setOrientation(QtCore.Qt.Vertical)
+        inspectorSplitter.setSizes([320, 50, 640])
+        splitter.addWidget(inspectorSplitter)
         splitter.setSizes([100, 700, 300])
 
         layout.addWidget(splitter)
@@ -159,6 +185,7 @@ class Main(QtWidgets.QMainWindow):
         self.timeline_widget.selection_changed.connect(
             self.details_widget.set_item
         )
+        self.timeline_widget.selection_changed.connect(self.thumbnail_viewer_widget.update_thumbnail)
 
         self.setStyleSheet(settings.VIEW_STYLESHEET)
 
@@ -169,14 +196,14 @@ class Main(QtWidgets.QMainWindow):
 
         extensions = otio.adapters.suffixes_with_defined_adapters(read=True)
 
-        extensions_string = ' '.join(f'*.{x}' for x in extensions)
+        extensions_string = ' '.join('*.{}'.format(x) for x in extensions)
 
         path = str(
             QtWidgets.QFileDialog.getOpenFileName(
                 self,
                 'Open OpenTimelineIO',
                 start_folder,
-                f'OTIO ({extensions_string})'
+                'OTIO ({extensions})'.format(extensions=extensions_string)
             )[0]
         )
 
@@ -185,7 +212,7 @@ class Main(QtWidgets.QMainWindow):
 
     def load(self, path):
         self._current_file = path
-        self.setWindowTitle(f'OpenTimelineIO View: "{path}"')
+        self.setWindowTitle('OpenTimelineIO View: "{}"'.format(path))
         self.details_widget.set_item(None)
         self.tracks_widget.clear()
         file_contents = otio.adapters.read_from_file(
@@ -259,7 +286,7 @@ class Main(QtWidgets.QMainWindow):
             self.move(frame_geo.topLeft())
 
     def show(self):
-        super().show()
+        super(Main, self).show()
         self.timeline_widget.frame_all()
 
 
